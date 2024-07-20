@@ -10,7 +10,7 @@ use super::{CachableWidget, CacheState};
 use crate::common::{format_decimals, ChartType};
 use crate::draw::{add_padding, PaddingDirection};
 use crate::theme::style;
-use crate::{ENABLE_PRE_POST, SHOW_VOLUMES, THEME};
+use crate::{DISABLE_CURRENT_PRICE_COLORS, ENABLE_PRE_POST, SHOW_VOLUMES, THEME};
 
 pub struct StockSummaryWidget {}
 
@@ -33,6 +33,7 @@ impl CachableWidget<StockState> for StockSummaryWidget {
         let pct_change = state.pct_change(&data);
 
         let chart_type = state.chart_type;
+        let disable_current_price_colors = *DISABLE_CURRENT_PRICE_COLORS.read();
         let enable_pre_post = *ENABLE_PRE_POST.read();
         let show_volumes = *SHOW_VOLUMES.read() && chart_type != ChartType::Kagi;
 
@@ -84,7 +85,7 @@ impl CachableWidget<StockState> for StockSummaryWidget {
             layout[0] = add_padding(layout[0], 1, PaddingDirection::Left);
             layout[0] = add_padding(layout[0], 2, PaddingDirection::Right);
 
-            let (high, low) = state.high_low(&data);
+            let (high, low, _open, _close) = state.high_low_open_close(&data);
             let current_fmt = format_decimals(state.current_price());
             let high_fmt = format_decimals(high);
             let low_fmt = format_decimals(low);
@@ -93,7 +94,6 @@ impl CachableWidget<StockState> for StockSummaryWidget {
 
             let prices = vec![
                 Spans::from(vec![
-                    Span::styled("C: ", style().fg(THEME.text_normal())),
                     Span::styled(
                         if loaded {
                             format!("{} {}", current_fmt, currency)
@@ -102,7 +102,18 @@ impl CachableWidget<StockState> for StockSummaryWidget {
                         },
                         style()
                             .add_modifier(Modifier::BOLD)
-                            .fg(THEME.text_primary()),
+                            .fg(
+                                if disable_current_price_colors {
+                                    THEME.text_primary()
+                                }
+                                else {
+                                    if pct_change >= 0.0 {
+                                        THEME.profit()
+                                    } else {
+                                        THEME.loss()
+                                    }
+                                }
+                            ),
                     ),
                 ]),
                 Spans::from(vec![
@@ -131,7 +142,7 @@ impl CachableWidget<StockState> for StockSummaryWidget {
 
             let pct = vec![Span::styled(
                 if loaded {
-                    format!("  {:.2}%", pct_change * 100.0)
+                    format!("  {:+.2}%", pct_change * 100.0)
                 } else {
                     "".to_string()
                 },

@@ -21,6 +21,7 @@ pub fn resolve_opts() -> Opts {
 
         // Flags
         opts.enable_pre_post = opts.enable_pre_post || config_opts.enable_pre_post;
+        opts.disable_current_price_colors = opts.disable_current_price_colors || config_opts.disable_current_price_colors;
         opts.hide_help = opts.hide_help || config_opts.hide_help;
         opts.hide_prev_close = opts.hide_prev_close || config_opts.hide_prev_close;
         opts.hide_toggle = opts.hide_toggle || config_opts.hide_toggle;
@@ -104,6 +105,9 @@ pub struct Opts {
     /// Enable pre / post market hours for graphs
     pub enable_pre_post: bool,
     #[structopt(long)]
+    /// Disable profit/loss colors for the current price
+    pub disable_current_price_colors: bool,
+    #[structopt(long)]
     /// Hide help icon in top right
     pub hide_help: bool,
     #[structopt(long)]
@@ -150,6 +154,9 @@ const DEFAULT_CONFIG: &str = "---
 # Interval to update data from API (seconds)
 # Default is 1
 #update_interval: 1
+
+# Disables profit/loss colors for the current market price
+#disable_current_price_colors: false
 
 # Enable pre / post market hours for graphs
 #enable_pre_post: true

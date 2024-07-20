@@ -17,8 +17,8 @@ use crate::draw::{add_padding, PaddingDirection};
 use crate::service::{self, Service};
 use crate::theme::style;
 use crate::{
-    DEFAULT_TIMESTAMPS, ENABLE_PRE_POST, HIDE_PREV_CLOSE, HIDE_TOGGLE, OPTS, SHOW_VOLUMES,
-    SHOW_X_LABELS, THEME, TIME_FRAME, TRUNC_PRE,
+    DEFAULT_TIMESTAMPS, DISABLE_CURRENT_PRICE_COLORS, ENABLE_PRE_POST, HIDE_PREV_CLOSE, HIDE_TOGGLE,
+    OPTS, SHOW_VOLUMES, SHOW_X_LABELS, THEME, TIME_FRAME, TRUNC_PRE,
 };
 
 const NUM_LOADING_TICKS: usize = 4;
@@ -392,7 +392,7 @@ impl StockState {
     }
 
     pub fn min_max(&self, data: &[Price]) -> (f64, f64) {
-        let (mut max, mut min) = self.high_low(data);
+        let (mut max, mut min, mut _open, mut _close) = self.high_low_open_close(data);
 
         if self.time_frame == TimeFrame::Day1 && !*HIDE_PREV_CLOSE {
             if let Some(prev_close) = self.prev_close_price {
@@ -409,7 +409,7 @@ impl StockState {
         (min, max)
     }
 
-    pub fn high_low(&self, data: &[Price]) -> (f64, f64) {
+    pub fn high_low_open_close(&self, data: &[Price]) -> (f64, f64, f64, f64) {
         let mut data = data.to_vec();
         data.push(Price {
             close: self.current_price(),
@@ -430,8 +430,18 @@ impl StockState {
             .min_by(|a, b| a.low.partial_cmp(&b.low).unwrap())
             .map(|p| p.low)
             .unwrap_or(0.0);
+        let open = data
+            .iter()
+            .next()
+            .map(|p| p.open)
+            .unwrap_or(0.0);
+        let close = data
+            .iter()
+            .max_by(|a, b| a.date.partial_cmp(&b.date).unwrap())
+            .map(|p| p.close)
+            .unwrap_or(0.0);
 
-        (high, low)
+        (high, low, open, close)
     }
 
     pub fn x_bounds(&self, start: i64, end: i64, data: &[Price]) -> [f64; 2] {
@@ -596,6 +606,7 @@ impl CachableWidget<StockState> for StockWidget {
         let pct_change = state.pct_change(&data);
 
         let chart_type = state.chart_type;
+        let disable_current_price_colors = *DISABLE_CURRENT_PRICE_COLORS.read();
         let show_x_labels = *SHOW_X_LABELS.read();
         let enable_pre_post = *ENABLE_PRE_POST.read();
         let show_volumes = *SHOW_VOLUMES.read() && chart_type != ChartType::Kagi;
@@ -655,16 +666,17 @@ impl CachableWidget<StockState> for StockWidget {
                 .split(chunks[0]);
             info_chunks[0] = add_padding(info_chunks[0], 1, PaddingDirection::Top);
 
-            let (high, low) = state.high_low(&data);
+            let (high, low, open, close) = state.high_low_open_close(&data);
             let current_fmt = format_decimals(state.current_price());
             let high_fmt = format_decimals(high);
             let low_fmt = format_decimals(low);
+            let open_fmt = format_decimals(open);
+            let close_fmt = format_decimals(close);
 
             let vol = state.reg_mkt_volume.clone().unwrap_or_default();
 
             let company_info = vec![
                 Spans::from(vec![
-                    Span::styled("C: ", style()),
                     Span::styled(
                         if loaded {
                             format!("{} {}", current_fmt, currency)
@@ -673,21 +685,34 @@ impl CachableWidget<StockState> for StockWidget {
                         },
                         style()
                             .add_modifier(Modifier::BOLD)
-                            .fg(THEME.text_primary()),
+                            .fg(
+                                if disable_current_price_colors {
+                                    THEME.text_primary()
+                                }
+                                else {
+                                    if pct_change >= 0.0 {
+                                        THEME.profit()
+                                    } else {
+                                        THEME.loss()
+                                    }
+                                }
+                            ),
                     ),
                     Span::styled(
                         if loaded {
-                            format!("  {:.2}%", pct_change * 100.0)
+                            format!("  {:+.2}%", pct_change * 100.0)
                         } else {
                             "".to_string()
                         },
                         style()
                             .add_modifier(Modifier::BOLD)
-                            .fg(if pct_change >= 0.0 {
-                                THEME.profit()
-                            } else {
-                                THEME.loss()
-                            }),
+                            .fg(
+                                if pct_change >= 0.0 {
+                                    THEME.profit()
+                                } else {
+                                    THEME.loss()
+                                }
+                            ),
                     ),
                 ]),
                 Spans::from(vec![
@@ -696,11 +721,21 @@ impl CachableWidget<StockState> for StockWidget {
                         if loaded { high_fmt } else { "".to_string() },
                         style().fg(THEME.text_secondary()),
                     ),
+                    Span::styled("  O: ", style()),
+                    Span::styled(
+                        if loaded { open_fmt } else { "".to_string() },
+                        style().fg(THEME.text_secondary()),
+                    ),
                 ]),
                 Spans::from(vec![
                     Span::styled("L: ", style()),
                     Span::styled(
                         if loaded { low_fmt } else { "".to_string() },
+                        style().fg(THEME.text_secondary()),
+                    ),
+                    Span::styled("  C: ", style()),
+                    Span::styled(
+                        if loaded { close_fmt } else { "".to_string() },
                         style().fg(THEME.text_secondary()),
                     ),
                 ]),

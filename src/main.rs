@@ -33,6 +33,7 @@ lazy_static! {
     pub static ref OPTS: opts::Opts = opts::resolve_opts();
     pub static ref UPDATE_INTERVAL: u64 = OPTS.update_interval.unwrap_or(1);
     pub static ref TIME_FRAME: TimeFrame = OPTS.time_frame.unwrap_or(TimeFrame::Day1);
+    pub static ref DISABLE_CURRENT_PRICE_COLORS: RwLock<bool> = RwLock::new(OPTS.disable_current_price_colors);
     pub static ref HIDE_TOGGLE: bool = OPTS.hide_toggle;
     pub static ref HIDE_PREV_CLOSE: bool = OPTS.hide_prev_close;
     pub static ref REDRAW_REQUEST: (Sender<()>, Receiver<()>) = bounded(1);
